@@ -6,6 +6,8 @@
 # LICENSE file in the root directory of this source tree.
 
 
+# python3 moco/main_moco.py -a resnet50 --lr 0.03 --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size 1 --rank 0 --angle 30
+
 import argparse
 import builtins
 import math
@@ -15,8 +17,11 @@ import shutil
 import time
 import warnings
 
-import deeplearning.cross_image_ssl.moco.builder
-import deeplearning.cross_image_ssl.moco.loader
+# import deeplearning.cross_image_ssl.moco.builder
+# import deeplearning.cross_image_ssl.moco.loader
+
+import moco.builder
+import moco.loader
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -39,7 +44,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src'
 
 # Import BraTSDataset
 from BraTSDataset import BraTSDataset
-
+torch.cuda.empty_cache()  # Clears cached memory
 
 model_names = sorted(
     name
@@ -48,7 +53,7 @@ model_names = sorted(
 )
 
 parser = argparse.ArgumentParser(description="PyTorch ImageNet Training")
-parser.add_argument("data", metavar="DIR", help="path to dataset")
+# parser.add_argument("data", metavar="DIR", help="path to dataset")
 
 parser.add_argument("--angle", type=float, default=30, help="rotation angle")
 
@@ -81,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "-b",
     "--batch-size",
-    default=256,
+    default=16,
     type=int,
     metavar="N",
     help="mini-batch size (default: 256), this is the total "
@@ -258,7 +263,7 @@ def main_worker(gpu, ngpus_per_node, args):
         )
     # create model
     print("=> creating model '{}'".format(args.arch))
-    model = deeplearning.cross_image_ssl.moco.builder.MoCo(
+    model = moco.builder.MoCo(
         models.__dict__[args.arch],
         args.moco_dim,
         args.moco_k,
@@ -332,7 +337,7 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
-    traindir = os.path.join(args.data, "train")
+    # traindir = os.path.join(args.data, "train")
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
     )
@@ -346,7 +351,7 @@ def main_worker(gpu, ngpus_per_node, args):
             ),
             transforms.RandomGrayscale(p=0.2),
             transforms.RandomApply(
-                [deeplearning.cross_image_ssl.moco.loader.GaussianBlur([0.1, 2.0])],
+                [moco.loader.GaussianBlur([0.1, 2.0])],
                 p=0.5,
             ),
             transforms.RandomHorizontalFlip(),
@@ -372,13 +377,15 @@ def main_worker(gpu, ngpus_per_node, args):
     # )
 
     train_dataset = BraTSDataset(
-            root_dir="datasets/MICCAI_BraTS2020_TrainingData",
-    transform=transforms.Compose([
-        transforms.Resize((224, 224)),  # Resize to a common size
-        transforms.ToTensor()          # Convert to tensor
-    ]),
-    slice_indices=[77],  # Extract a specific slice
-    rotation_angle=args.angle,   # Rotate by 30 degrees
+        root_dir="datasets/MICCAI_BraTS2020_TrainingData",
+        transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),  # Ensure 3-channel grayscale image
+            transforms.Resize((224, 224)),  # Resize to 224x224
+            transforms.ToTensor(),  # Convert to tensor
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalize
+        ]),
+        slice_indices=[77],  # Extract a specific slice
+        rotation_angle=args.angle,   # Rotate by 30 degrees
     )
 
     if args.distributed:
@@ -435,24 +442,24 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
 
     end = time.time()
-    for i, (images, _) in enumerate(train_loader):
+    for i, (original, rotated) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
 
         if args.gpu is not None:
-            images[0] = images[0].cuda(args.gpu, non_blocking=True)
-            images[1] = images[1].cuda(args.gpu, non_blocking=True)
+            original = original.cuda(args.gpu, non_blocking=True)
+            rotated = rotated.cuda(args.gpu, non_blocking=True)
 
         # compute output
-        output, target = model(im_q=images[0], im_k=images[1])
+        output, target = model(im_q=original, im_k=rotated)
         loss = criterion(output, target)
 
         # acc1/acc5 are (K+1)-way contrast classifier accuracy
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), images[0].size(0))
-        top1.update(acc1[0], images[0].size(0))
-        top5.update(acc5[0], images[0].size(0))
+        losses.update(loss.item(), original.size(0))
+        top1.update(acc1[0], original.size(0))
+        top5.update(acc5[0], original.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -539,7 +546,7 @@ def accuracy(output, target, topk=(1,)):
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
