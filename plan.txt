@@ -1,0 +1,19 @@
+MoCo    ResNet-18
+        ConvNeXt-Tiny
+        ViT-B/16
+        EfficientNet-B0
+        RegNetY-400MF
+        WideResNet-50-2
+        MobileNetV2
+        Swin-Tiny
+
+SimCLR  ResNet-18
+        ConvNeXt-Tiny
+        ViT-B/16
+        EfficientNet-B0
+        RegNetY-400MF
+        WideResNet-50-2
+        MobileNetV2
+        Swin-Tiny
+        
+
