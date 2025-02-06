@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>16×16 Plots Grid</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: sans-serif;
+      background: #f0f0f0;
+    }
+
+    #controls {
+      margin-bottom: 20px;
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 2px;
+      /* Set the point from which scaling occurs */
+      transform-origin: top left;
+    }
+
+    .cell {
+      background: #fff;
+      border: 1px solid #ccc;
+      width: 100px;  /* Adjust cell size as needed */
+      height: 100px; /* Adjust cell size as needed */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .cell img {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Zoom slider control -->
+  <div id="controls">
+    <label for="zoomRange">Zoom: </label>
+    <input type="range" id="zoomRange" min="0.5" max="3" step="0.1" value="1" />
+    <span id="zoomValue">1x</span>
+  </div>
+
+  <div id="grid"></div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const rows = 16;
+    const cols = 16;
+
+    for (let y = 1; y <= rows; y++) {
+      for (let x = 1; x <= cols; x++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+
+        const img = document.createElement('img');
+        img.src = `/Users/paulyan/Desktop/my_thesis/plots/plot_${x}_${y}.png`;
+        img.alt = `Plot ${x}, ${y}`;
+
+        cell.appendChild(img);
+        grid.appendChild(cell);
+      }
+    }
+
+    const zoomRange = document.getElementById('zoomRange');
+    const zoomValue = document.getElementById('zoomValue');
+
+    zoomRange.addEventListener('input', function() {
+      const scale = zoomRange.value;
+      grid.style.transform = 'scale(' + scale + ')';
+      zoomValue.textContent = scale + 'x';
+    });
+  </script>
+</body>
+</html>

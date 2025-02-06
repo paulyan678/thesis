@@ -4,6 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
+import torch
 
 
 class BraTSDataset(Dataset):
@@ -56,54 +57,51 @@ class BraTSDataset(Dataset):
 
         # Apply transformations (if provided)
         if self.transform:
-            original_image = self.transform(slice_image)
-            rotated_image = self.transform(rotated_image)
+            original_image = self.transform(slice_image)  # First view
+            rotated_image = self.transform(rotated_image)  # Second view
         else:
             original_image = transforms.ToTensor()(slice_image)
             rotated_image = transforms.ToTensor()(rotated_image)
 
-        # Return the original and rotated images (contrastive learning pair)
-        return original_image, rotated_image
+        # Return a tuple of the two views for contrastive learning
+        return (original_image, rotated_image)
+
+
 
 
 if __name__ == "__main__":
 
-    import matplotlib.pyplot as plt
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+
+    # Define transformations
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=3),  # Convert grayscale to 3-channel RGB
+        transforms.Resize((224, 224)),  # Resize to 224x224
+        transforms.ToTensor(),  # Convert to tensor
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalize
+    ])
 
     # Instantiate the dataset
-    dataset = BraTSDataset(
+    train_dataset = BraTSDataset(
         root_dir="datasets/MICCAI_BraTS2020_TrainingData",
-        transform=transforms.Compose([
-            transforms.Resize((224, 224)),  # Resize to a common size
-            transforms.ToTensor()          # Convert to tensor
-        ]),
-        slice_indices=[77],  # Extract a specific slice
+        transform=transform,
+        slice_indices=[77],  # Specify slice indices
         rotation_angle=30,   # Rotate by 30 degrees
     )
 
-    for i in range(len(dataset)):
-        # Get the first example from the dataset
-        original_image, rotated_image = dataset[i]
+    # Create the DataLoader
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=32,  # Specify batch size
+        shuffle=True,
+        num_workers=4,
+    )
 
-        # Convert tensors back to numpy arrays for plotting
-        original_image_np = original_image.squeeze().numpy()  # Remove channel dimension (C, H, W -> H, W)
-        rotated_image_np = rotated_image.squeeze().numpy()    # Same for the rotated image
+    # Iterate over the DataLoader
+    for i, (orginal, rotated) in enumerate(train_loader):
+        print(f"Image 1 shape (im_q): {images[0].shape}")  # Should be [batch_size, 3, 224, 224]
+        print(f"Image 2 shape (im_k): {images[1].shape}")  # Should be [batch_size, 3, 224, 224]
+        break
 
-        # Plot the images
-        plt.figure(figsize=(10, 5))
-
-        # Plot original image
-        plt.subplot(1, 2, 1)
-        plt.imshow(original_image_np, cmap='gray')
-        plt.title("Original Image")
-        plt.axis("off")
-
-        # Plot rotated image
-        plt.subplot(1, 2, 2)
-        plt.imshow(rotated_image_np, cmap='gray')
-        plt.title("Rotated Image (30°)")
-        plt.axis("off")
-
-        plt.tight_layout()
-        plt.show()
 
